@@ -95,7 +95,7 @@ public class GlowingTracker extends AbstractTaskTracker {
 						foundLocatedEntity(player, set, entity);
 					});
 				}
-			} else if (located instanceof LocatedBlock && isBlocksEnabled()) {
+			} else if (located instanceof LocatedBlock) {
 				Location block = located.getLocation();
 				if (block != null) {
 					shown.forEach((player, set) -> {
@@ -115,9 +115,6 @@ public class GlowingTracker extends AbstractTaskTracker {
 							.tryAdvance(located -> foundLocatedEntity(player, set, ((LocatedEntity) located).getEntity())))
 						break;
 				}
-
-				if (!isBlocksEnabled())
-					return;
 
 				locateds = multiple
 						.getNearbyLocated(NearbyFetcher.create(player.getLocation(), maxDistance, LocatedType.BLOCK));
@@ -248,7 +245,7 @@ public class GlowingTracker extends AbstractTaskTracker {
 			try {
 				ENTITIES_API.setGlowing(entity, player, color);
 
-				if (blockUnderEntity && isBlocksEnabled())
+				if (blockUnderEntity)
 					BLOCKS_API.setGlowing(entity.getLocation().subtract(0, 1, 0), player, color);
 			}catch (ReflectiveOperationException e) {
 				e.printStackTrace();
@@ -260,7 +257,7 @@ public class GlowingTracker extends AbstractTaskTracker {
 			try {
 				ENTITIES_API.unsetGlowing(entity, player);
 
-				if (blockUnderEntity && isBlocksEnabled())
+				if (blockUnderEntity)
 					BLOCKS_API.unsetGlowing(entity.getLocation().subtract(0, 1, 0), player);
 			}catch (ReflectiveOperationException e) {
 				e.printStackTrace();
@@ -323,14 +320,10 @@ public class GlowingTracker extends AbstractTaskTracker {
 
 	}
 
-	private static boolean isBlocksEnabled() {
-		return BeautyQuests.getInstance().isRunningPaper();
-	}
-
 	private static synchronized void initializeUtils() {
 		if (ENTITIES_API == null)
 			ENTITIES_API = new GlowingEntities(BeautyQuestsExpansion.getInstance());
-		if (BLOCKS_API == null && isBlocksEnabled())
+		if (BLOCKS_API == null)
 			BLOCKS_API = new GlowingBlocks(BeautyQuestsExpansion.getInstance());
 	}
 
@@ -338,7 +331,7 @@ public class GlowingTracker extends AbstractTaskTracker {
 		if (Locatable.hasLocatedTypes(type.getStageClass(), LocatedType.ENTITY))
 			return true;
 
-		return isBlocksEnabled() && Locatable.hasLocatedTypes(type.getStageClass(), LocatedType.BLOCK);
+		return Locatable.hasLocatedTypes(type.getStageClass(), LocatedType.BLOCK);
 	}
 
 }
