@@ -77,7 +77,7 @@ public class BeautyQuestsExpansion extends JavaPlugin {
 			if (!isBQUpToDate())
 				throw new LoadingException("This version of the expansion is not compatible with the version of BeautyQuests.");
 
-			logger.info("Hooked expansion version " + getDescription().getVersion());
+			logger.info("Hooked expansion version " + getPluginMeta().getVersion());
 
 			audiences = BukkitAudiences.create(this);
 
@@ -108,7 +108,7 @@ public class BeautyQuestsExpansion extends JavaPlugin {
 	@SuppressWarnings("unused") // because we don't always use major, minor and revision at the same time
 	private boolean isBQUpToDate() {
 		Pattern bqVersion = Pattern.compile("(\\d+)\\.(\\d+)(?>\\.(\\d+))?(?>\\+build\\.(.+))?");
-		Matcher matcher = bqVersion.matcher(beautyQuests.getDescription().getVersion());
+		Matcher matcher = bqVersion.matcher(beautyQuests.getPluginMeta().getVersion());
 		if (matcher.find()) {
 			int major = Integer.parseInt(matcher.group(1));
 			int minor = Integer.parseInt(matcher.group(2));

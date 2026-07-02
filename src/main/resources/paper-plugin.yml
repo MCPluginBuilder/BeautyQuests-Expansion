@@ -1,13 +1,17 @@
 name: BeautyQuests-Expansion
 author: SkytAsul
-version: ${project.version}
+version: "${project.version}"
 description: 'Expansion for the BeautyQuests plugin.'
-api-version: 1.17
+api-version: "1.17"
 main: fr.skytasul.quests.expansion.BeautyQuestsExpansion
 prefix: 'BeautyQuests Expansion'
 
-depend:
-- BeautyQuests
+dependencies:
+  server:
+    BeautyQuests:
+      load: AFTER
+      required: true
+      join-classpath: true
 
 softdepend:
 - Rankup
