@@ -45,8 +45,8 @@ public class QuestPointsRequirement extends TargetNumberRequirement {
 	}
 
 	@Override
-	public void sendHelpString(Player p) {
-		LangExpansion.Points_Requirement_Editor_Target.send(p);
+	public String getNumberIndication(Player p) {
+		return LangExpansion.Points_Requirement_Editor_Target.toString();
 	}
 
 	@Override

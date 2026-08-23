@@ -121,7 +121,7 @@ public class BeautyQuestsExpansion extends JavaPlugin {
 				try {
 					int build = Integer.parseInt(buildStr);
 					// build 136 was incorrectly numbered as 151
-					return build >= 144 && build != 151;
+					return build >= 152;
 				}catch (NumberFormatException ex) {
 					logger.warning(
 							"Cannot parse BeautyQuests version. This version of the expansion might not be compatible.");

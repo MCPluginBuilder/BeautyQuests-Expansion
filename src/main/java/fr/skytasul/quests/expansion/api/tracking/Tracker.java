@@ -43,7 +43,7 @@ public abstract class Tracker extends QuestObject {
 	}
 
 	@Override
-	protected void sendCustomDescriptionHelpMessage(Player p) {
+	protected String getCustomDescriptionIndication(Player p) {
 		throw new UnsupportedOperationException();
 	}
 
