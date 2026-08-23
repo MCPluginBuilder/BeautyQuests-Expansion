@@ -2,7 +2,6 @@ package fr.skytasul.quests.expansion.stages;
 
 import com.cryptomorin.xseries.XMaterial;
 import fr.skytasul.quests.api.QuestsPlugin;
-import fr.skytasul.quests.api.editors.TextEditor;
 import fr.skytasul.quests.api.editors.parsers.NumberParser;
 import fr.skytasul.quests.api.gui.ItemUtils;
 import fr.skytasul.quests.api.gui.templates.StaticPagedGUI;
@@ -31,19 +30,19 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class StageStatistic extends AbstractStage implements HasProgress {
 
-	private final Statistic statistic;
-	private final Material offsetMaterial;
-	private final EntityType offsetEntity;
-
+	private final StatisticData statistic;
 	private final int limit;
 	private final ComparisonMethod comparison;
 	private final boolean relative;
@@ -53,39 +52,11 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 
 	private Map<Quester, Integer> lastValues = new HashMap<>();
 
-	public StageStatistic(StageController controller, Statistic statistic, int limit, ComparisonMethod comparison,
+	public StageStatistic(StageController controller, StatisticData statistic, int limit, ComparisonMethod comparison,
 			boolean relative) {
 		super(controller);
 
 		this.statistic = statistic;
-		this.offsetMaterial = null;
-		this.offsetEntity = null;
-
-		this.limit = limit;
-		this.comparison = comparison;
-		this.relative = relative;
-	}
-
-	public StageStatistic(StageController controller, Statistic statistic, Material offsetMaterial, int limit,
-			ComparisonMethod comparison, boolean relative) {
-		super(controller);
-
-		this.statistic = statistic;
-		this.offsetMaterial = offsetMaterial;
-		this.offsetEntity = null;
-
-		this.limit = limit;
-		this.comparison = comparison;
-		this.relative = relative;
-	}
-
-	public StageStatistic(StageController controller, Statistic statistic, EntityType offsetEntity, int limit,
-			ComparisonMethod comparison, boolean relative) {
-		super(controller);
-
-		this.statistic = statistic;
-		this.offsetMaterial = null;
-		this.offsetEntity = offsetEntity;
 
 		this.limit = limit;
 		this.comparison = comparison;
@@ -101,16 +72,16 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 	protected void createdPlaceholdersRegistry(@NotNull PlaceholderRegistry placeholders) {
 		super.createdPlaceholdersRegistry(placeholders);
 
-		String offsetName = getOffsetName();
+		String offsetName = statistic.dataName();
 		placeholders.registerIndexed("statistic_type_name",
-				statistic.name() + (offsetName == null ? "" : "(" + offsetName + ")"));
+				statistic.statistic().name() + (offsetName == null ? "" : "(" + offsetName + ")"));
 		placeholders.registerIndexedContextual("remaining_value", StageDescriptionPlaceholdersContext.class,
 				context -> {
 					if (context.getQuester() instanceof PlayerQuester quester && quester.isActive())
 						return Integer.toString(limit - getPlayerTarget(quester.getPlayer().get(), quester));
 					return "error: not a player";
 				});
-		placeholders.registerIndexed("statistic_name", statistic.name());
+		placeholders.registerIndexed("statistic_name", statistic.statistic().name());
 		placeholders.registerIndexed("type_name", offsetName);
 		placeholders.register("target_value", limit);
 		ProgressPlaceholders.registerProgress(placeholders, "statistic", this);
@@ -128,30 +99,14 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 		return limit - getPlayerTarget(playerQuester.getPlayer().get(), quester);
 	}
 
-	private String getOffsetName() {
-		return offsetMaterial != null ? offsetMaterial.name() : (offsetEntity != null ? offsetEntity.name() : null);
-	}
-
 	private int getPlayerTarget(Player player, Quester quester) {
-		int stat = getStatistic(player);
+		int stat = statistic.getPlayerStatistic(player);
 
 		if (relative) {
 			Integer initial = getData(quester, "initial", Integer.class);
 			if (initial != null) stat -= initial.intValue();
 		}
 
-		return stat;
-	}
-
-	private int getStatistic(Player player) {
-		int stat;
-		if (offsetMaterial != null) {
-			stat = player.getStatistic(statistic, offsetMaterial);
-		}else if (offsetEntity != null) {
-			stat = player.getStatistic(statistic, offsetEntity);
-		}else {
-			stat = player.getStatistic(statistic);
-		}
 		return stat;
 	}
 
@@ -196,7 +151,7 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 			int stat = 0;
 			if (quester instanceof PlayerQuester playerQuester) {
 				if (playerQuester.isActive()) {
-					stat = getStatistic(playerQuester.getPlayer().get());
+					stat = statistic.getPlayerStatistic(playerQuester.getPlayer().get());
 				} else {
 					BeautyQuestsExpansion.logger.warning(
 							"Trying to fetch initial statistic value for quester {0} that is offline (stage {1}).",
@@ -238,12 +193,13 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 
 	@Override
 	protected void serialize(ConfigurationSection section) {
-		section.set("statistic", statistic.name());
-		if (offsetMaterial != null) {
-			section.set("material", offsetMaterial.name());
-		}else if (offsetEntity != null) {
-			section.set("entity", offsetEntity.name());
-		}
+		section.set("statistic", statistic.statistic().name());
+
+		if (statistic instanceof MaterialStatistic materialStatistic)
+			section.set("material", materialStatistic.material().name());
+		else if (statistic instanceof EntityStatistic entityStatistic)
+			section.set("entity", entityStatistic.entityType().name());
+
 		section.set("limit", limit);
 		if (relative) section.set("relative", true);
 		if (comparison != ComparisonMethod.GREATER_OR_EQUAL) section.set("comparison", comparison.name());
@@ -255,15 +211,15 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 		boolean relative = section.getBoolean("relative", false);
 		ComparisonMethod comparison = section.contains("comparison") ? ComparisonMethod.valueOf(section.getString("comparison")) : ComparisonMethod.GREATER_OR_EQUAL;
 
-		if (section.contains("material")) {
-			return new StageStatistic(controller, statistic, Material.valueOf(section.getString("material")), limit,
-					comparison, relative);
-		}else if (section.contains("entity")) {
-			return new StageStatistic(controller, statistic, EntityType.valueOf(section.getString("entity")), limit,
-					comparison, relative);
-		}else {
-			return new StageStatistic(controller, statistic, limit, comparison, relative);
-		}
+		StatisticData statisticData;
+		if (section.contains("material"))
+			statisticData = new MaterialStatistic(statistic, Material.valueOf(section.getString("material")));
+		else if (section.contains("entity"))
+			statisticData = new EntityStatistic(statistic, EntityType.valueOf(section.getString("entity")));
+		else
+			statisticData = new SimpleStatistic(statistic);
+
+		return new StageStatistic(controller, statisticData, limit, comparison, relative);
 	}
 
 	public static class Creator extends StageCreation<StageStatistic> {
@@ -298,9 +254,7 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 		private static final int SLOT_LIMIT = 6;
 		private static final int SLOT_RELATIVE = 7;
 
-		private Statistic statistic;
-		private Material offsetMaterial;
-		private EntityType offsetEntity;
+		private StatisticData statistic;
 
 		private int limit;
 		private ComparisonMethod comparison = ComparisonMethod.GREATER_OR_EQUAL;
@@ -311,11 +265,11 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 
 			getLine().setItem(SLOT_STAT,
 					ItemUtils.item(XMaterial.FEATHER, LangExpansion.Stage_Statistic_Item_Stat.toString()), event -> {
-						openStatisticGUI(event.getPlayer(), event::reopen, false);
+						openStatisticGUI(event.getPlayer(), false);
 			});
 			getLine().setItem(SLOT_LIMIT,
 					ItemUtils.item(XMaterial.REDSTONE, LangExpansion.Stage_Statistic_Item_Limit.toString()), event -> {
-						openLimitEditor(event.getPlayer(), event::reopen, event::reopen);
+						openLimitEditor(event.getPlayer(), false);
 			});
 			getLine().setItem(SLOT_RELATIVE,
 					ItemUtils.itemSwitch(LangExpansion.Stage_Statistic_Item_Relative.toString(), relative,
@@ -326,18 +280,11 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 					});
 		}
 
-		public void setStatistic(Statistic statistic) {
+		public void setStatistic(StatisticData statistic) {
 			this.statistic = statistic;
 
-			String name;
-			if (offsetMaterial != null) {
-				name = offsetMaterial.name();
-			}else if (offsetEntity != null) {
-				name = offsetEntity.name();
-			}else {
-				name = null;
-			}
-			getLine().refreshItemLoreOptionValue(SLOT_STAT, statistic.name() + (name == null ? "" : " (" + name + ")"));
+			String dataName = statistic.dataName();
+			getLine().refreshItemLoreOptionValue(SLOT_STAT, statistic.statistic().name() + (dataName == null ? "" : " (" + dataName + ")"));
 		}
 
 		public void setLimit(int limit) {
@@ -353,81 +300,73 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 		@Override
 		public void start(Player p) {
 			super.start(p);
-			openStatisticGUI(p, context::removeAndReopenGui, true);
+			openStatisticGUI(p, true);
 		}
 
-		private void openStatisticGUI(Player p, Runnable cancel, boolean askLimit) {
+		private void openMaterialStatisticEditor(Player player, Statistic statistic, boolean firstTime, Consumer<StatisticData> callback) {
+			boolean isItem = statistic.getType() == Type.ITEM;
+			QuestsPlugin.getPlugin().getEditorManager().getFactory().createTextEditorBuilderParser(player,
+					QuestsPlugin.getPlugin().getEditorManager().getFactory().getMaterialParser(isItem, !isItem),
+					firstTime ? context::removeAndReopenGui : context::reopenGui, material -> {
+						callback.accept(new MaterialStatistic(statistic, material.get()));
+					})
+					.build().start();
+		}
+
+		private void openEntityStatisticEditor(Player player, Statistic statistic, boolean firstTime, Consumer<StatisticData> callback) {
+			QuestsPlugin.getPlugin().getGuiManager().getFactory()
+					.createEntityTypeSelection(entityType -> {
+						callback.accept(new EntityStatistic(statistic, entityType));
+					}, null).open(player);
+		}
+
+		private void openStatisticGUI(Player p, boolean firstTime) {
 			new StaticPagedGUI<>(LangExpansion.Stage_Statistic_StatList_Gui_Name.toString(), DyeColor.LIGHT_BLUE,
 					STATISTIC_ITEMS, stat -> {
 						if (stat == null) {
-							cancel.run();
+							if (firstTime)
+								context.removeAndReopenGui();
+							else
+								context.reopenGui();
 						} else {
+							Consumer<StatisticData> callback = statistic -> {
+								setStatistic(statistic);
+								if (firstTime)
+									openLimitEditor(p, firstTime);
+								else
+									context.reopenGui();
+							};
 							switch (stat.getType()) {
 								case BLOCK:
 								case ITEM:
-									boolean isItem = stat.getType() == Type.ITEM;
-									new TextEditor<>(p, cancel, offset -> {
-										Runnable end = () -> {
-											offsetMaterial = offset.parseMaterial();
-											setStatistic(stat);
-											context.reopenGui();
-										};
-										if (askLimit) {
-											openLimitEditor(p, cancel, end);
-										} else
-											end.run();
-
-									}, QuestsPlugin.getPlugin().getEditorManager().getFactory().getMaterialParser(isItem,
-											!isItem))
-													.start();
+									openMaterialStatisticEditor(p, stat, firstTime, callback);
 									break;
 								case ENTITY:
-									QuestsPlugin.getPlugin().getGuiManager().getFactory()
-											.createEntityTypeSelection(offset -> {
-												Runnable end = () -> {
-													offsetEntity = offset;
-													setStatistic(stat);
-													context.reopenGui();
-												};
-												if (askLimit) {
-													openLimitEditor(p, cancel, end);
-												} else
-													end.run();
-											}, null).open(p);
+									openEntityStatisticEditor(p, stat, firstTime, callback);
 									break;
-								default:
-									Runnable end = () -> {
-										setStatistic(stat);
-										context.reopenGui();
-									};
-									if (askLimit) {
-										openLimitEditor(p, cancel, end);
-									} else
-										end.run();
+								case UNTYPED:
+									callback.accept(new SimpleStatistic(stat));
 									break;
 							}
 						}
 					}).addSearchButton(Statistic::name, true).open(p);
 		}
 
-		private void openLimitEditor(Player p, Runnable cancel, Runnable end) {
-			LangExpansion.Stage_Statistic_EDITOR_LIMIT.send(p);
-			new TextEditor<>(p, cancel, newLimit -> {
-				// add comparison editor
-
-				setLimit(newLimit);
-				end.run();
-			}, NumberParser.INTEGER_PARSER_POSITIVE).start();
+		private void openLimitEditor(Player p, boolean firstTime) {
+			QuestsPlugin.getPlugin().getEditorManager().getFactory()
+					.createTextEditorBuilderParser(p, NumberParser.INTEGER_PARSER_POSITIVE,
+							firstTime ? context::removeAndReopenGui : context::reopenGui, value -> {
+								setLimit(value);
+								context.reopenGui();
+							})
+					.setIndication(LangExpansion.Stage_Statistic_EDITOR_LIMIT.toString())
+					.setInitialValue(firstTime ? null : limit)
+					.build().start();
 		}
 
 		@Override
 		public void edit(StageStatistic stage) {
 			super.edit(stage);
-			if (stage.offsetEntity != null) {
-				this.offsetEntity = stage.offsetEntity;
-			}else if (stage.offsetMaterial != null) {
-				this.offsetMaterial = stage.offsetMaterial;
-			}
 			setStatistic(stage.statistic);
 			setLimit(stage.limit);
 			setRelative(stage.relative);
@@ -435,15 +374,55 @@ public class StageStatistic extends AbstractStage implements HasProgress {
 
 		@Override
 		protected StageStatistic finishStage(StageController controller) {
-			if (offsetMaterial != null) {
-				return new StageStatistic(controller, statistic, offsetMaterial, limit, comparison, relative);
-			}else if (offsetEntity != null) {
-				return new StageStatistic(controller, statistic, offsetEntity, limit, comparison, relative);
-			}else {
-				return new StageStatistic(controller, statistic, limit, comparison, relative);
-			}
+			return new StageStatistic(controller, statistic, limit, comparison, relative);
 		}
 
 	}
 
+}
+
+sealed interface StatisticData {
+	@NotNull
+	Statistic statistic();
+
+	@Nullable
+	String dataName();
+
+	int getPlayerStatistic(@NotNull Player player);
+}
+
+record SimpleStatistic(@NotNull Statistic statistic) implements StatisticData {
+	@Override
+	public @Nullable String dataName() {
+		return null;
+	}
+
+	@Override
+	public int getPlayerStatistic(@NotNull Player player) {
+		return player.getStatistic(statistic);
+	}
+}
+
+record EntityStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) implements StatisticData {
+	@Override
+	public @Nullable String dataName() {
+		return entityType.name();
+	}
+
+	@Override
+	public int getPlayerStatistic(@NotNull Player player) {
+		return player.getStatistic(statistic, entityType);
+	}
+}
+
+record MaterialStatistic(@NotNull Statistic statistic, @NotNull Material material) implements StatisticData {
+	@Override
+	public @Nullable String dataName() {
+		return material.name();
+	}
+
+	@Override
+	public int getPlayerStatistic(@NotNull Player player) {
+		return player.getStatistic(statistic, material);
+	}
 }
