@@ -2,8 +2,7 @@ package fr.skytasul.quests.expansion.tracking;
 
 import fr.skytasul.glowingentities.GlowingBlocks;
 import fr.skytasul.glowingentities.GlowingEntities;
-import fr.skytasul.quests.BeautyQuests;
-import fr.skytasul.quests.api.editors.TextEditor;
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.EnumParser;
 import fr.skytasul.quests.api.gui.LoreBuilder;
 import fr.skytasul.quests.api.localization.Lang;
@@ -187,11 +186,19 @@ public class GlowingTracker extends AbstractTaskTracker {
 	@Override
 	public void itemClick(QuestObjectClickEvent event) {
 		if (event.isInCreation()) return;
-		Lang.COLOR_NAMED_EDITOR.send(event.getPlayer());
-		new TextEditor<>(event.getPlayer(), event::reopenGUI, newColor -> {
-			this.color = newColor;
-			event.reopenGUI();
-		}, new EnumParser<>(ChatColor.class, ChatColor::isColor)).start();
+		QuestsPlugin.getPlugin().getEditorManager().getFactory()
+				.createTextEditorBuilderParser(event.getPlayer(), new EnumParser<>(ChatColor.class, ChatColor::isColor),
+						event::reopenGUI, newColor -> {
+							this.color = newColor;
+							event.reopenGUI();
+						})
+				.addReset(() -> {
+					this.color = DEFAULT_COLOR;
+					event.reopenGUI();
+				}, "reset")
+				.setIndication(Lang.COLOR_NAMED_EDITOR.toString())
+				.setInitialValue(this.color)
+				.build().start();
 	}
 
 	@Override

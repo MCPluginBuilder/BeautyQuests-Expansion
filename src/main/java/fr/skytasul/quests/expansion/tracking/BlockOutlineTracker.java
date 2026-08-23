@@ -5,10 +5,10 @@ import org.bukkit.Particle;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
-import fr.skytasul.quests.api.editors.TextEditor;
+
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.ColorParser;
 import fr.skytasul.quests.api.gui.LoreBuilder;
-import fr.skytasul.quests.api.localization.Lang;
 import fr.skytasul.quests.api.objects.QuestObjectClickEvent;
 import fr.skytasul.quests.api.stages.types.Locatable;
 import fr.skytasul.quests.api.stages.types.Locatable.Located;
@@ -66,11 +66,13 @@ public class BlockOutlineTracker extends AbstractTaskFetcherTracker {
 		new ParticleListGUI(newParticle -> {
 			if (newParticle != null) {
 				if (ParticleEffect.canHaveColor(newParticle)) {
-					Lang.COLOR_EDITOR.send(event.getPlayer());
-					new TextEditor<>(event.getPlayer(), event::reopenGUI, color -> {
-						particles = new ParticleEffect(newParticle, null, color);
-						event.reopenGUI();
-					}, ColorParser.PARSER).start();
+					QuestsPlugin.getPlugin().getEditorManager().getFactory()
+							.createTextEditorBuilderParser(event.getPlayer(), ColorParser.PARSER, event::reopenGUI,
+									newColor -> {
+										particles = new ParticleEffect(newParticle, null, newColor);
+										event.reopenGUI();
+									})
+							.build().start();
 					return;
 				}
 				particles = new ParticleEffect(newParticle, null, null);

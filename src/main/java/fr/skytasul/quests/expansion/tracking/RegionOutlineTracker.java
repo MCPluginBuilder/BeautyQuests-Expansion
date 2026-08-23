@@ -16,10 +16,10 @@ import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.Vector2;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionType;
-import fr.skytasul.quests.api.editors.TextEditor;
+
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.ColorParser;
 import fr.skytasul.quests.api.gui.LoreBuilder;
-import fr.skytasul.quests.api.localization.Lang;
 import fr.skytasul.quests.api.objects.QuestObjectClickEvent;
 import fr.skytasul.quests.expansion.api.tracking.Tracker;
 import fr.skytasul.quests.expansion.utils.ShapesAnalysis;
@@ -129,11 +129,13 @@ public class RegionOutlineTracker extends AbstractTaskShownTracker {
 		new ParticleListGUI(newParticle -> {
 			if (newParticle != null) {
 				if (ParticleEffect.canHaveColor(newParticle)) {
-					Lang.COLOR_EDITOR.send(event.getPlayer());
-					new TextEditor<>(event.getPlayer(), event::reopenGUI, color -> {
-						particles = new ParticleEffect(newParticle, null, color);
-						event.reopenGUI();
-					}, ColorParser.PARSER).start();
+					QuestsPlugin.getPlugin().getEditorManager().getFactory()
+							.createTextEditorBuilderParser(event.getPlayer(), ColorParser.PARSER, event::reopenGUI,
+									newColor -> {
+										particles = new ParticleEffect(newParticle, null, newColor);
+										event.reopenGUI();
+									})
+							.build().start();
 					return;
 				}
 				particles = new ParticleEffect(newParticle, null, null);

@@ -1,6 +1,6 @@
 package fr.skytasul.quests.expansion.points;
 
-import fr.skytasul.quests.api.editors.TextEditor;
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.NumberParser;
 import fr.skytasul.quests.api.objects.QuestObjectClickEvent;
 import fr.skytasul.quests.api.rewards.AbstractReward;
@@ -57,16 +57,24 @@ public class QuestPointsReward extends AbstractReward {
 
 	@Override
 	public void itemClick(QuestObjectClickEvent event) {
-		LangExpansion.Points_Reward_Editor_Min.send(event.getPlayer());
-		new TextEditor<>(event.getPlayer(), event::cancel, newMin -> {
-			LangExpansion.Points_Reward_Editor_Max.send(event.getPlayer());
-			new TextEditor<>(event.getPlayer(), event::cancel, newMax -> {
-				min = newMin;
-				max = newMax;
+		QuestsPlugin.getPlugin().getEditorManager().getFactory()
+				.createTextEditorBuilderParser(event.getPlayer(), NumberParser.INTEGER_PARSER_POSITIVE, event::cancel,
+						newMin -> {
+							QuestsPlugin.getPlugin().getEditorManager().getFactory()
+									.createTextEditorBuilderParser(event.getPlayer(),
+											NumberParser.INTEGER_PARSER_POSITIVE, event::cancel, newMax -> {
+												min = newMin;
+												max = newMax;
 
-				event.reopenGUI();
-			}, NumberParser.INTEGER_PARSER_POSITIVE).start();
-		}, NumberParser.INTEGER_PARSER_POSITIVE).start();
+												event.reopenGUI();
+											})
+									.setInitialValue(max)
+									.setIndication(LangExpansion.Points_Reward_Editor_Max.toString())
+									.build().start();
+						})
+				.setInitialValue(min)
+				.setIndication(LangExpansion.Points_Reward_Editor_Min.toString())
+				.build().start();
 	}
 
 	@Override

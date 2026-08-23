@@ -9,7 +9,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
-import fr.skytasul.quests.api.editors.TextEditor;
+
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.EnumParser;
 import fr.skytasul.quests.api.gui.LoreBuilder;
 import fr.skytasul.quests.api.localization.Lang;
@@ -126,11 +127,19 @@ public class BeaconTracker extends AbstractTaskTracker {
 	@Override
 	public void itemClick(QuestObjectClickEvent event) {
 		if (event.isInCreation()) return;
-		Lang.COLOR_NAMED_EDITOR.send(event.getPlayer());
-		new TextEditor<>(event.getPlayer(), event::reopenGUI, newColor -> {
-			setColor(newColor);
-			event.reopenGUI();
-		}, new EnumParser<>(DyeColor.class)).start();
+		
+		QuestsPlugin.getPlugin().getEditorManager().getFactory().createTextEditorBuilderParser(event.getPlayer(),
+				new EnumParser<>(DyeColor.class), event::reopenGUI, newColor -> {
+					setColor(newColor);
+					event.reopenGUI();
+				})
+				.addReset(() -> {
+					setColor(DEFAULT_COLOR);
+					event.reopenGUI();
+				}, "reset")
+				.setIndication(Lang.COLOR_NAMED_EDITOR.toString())
+				.setInitialValue(color)
+				.build().start();
 	}
 
 	@Override

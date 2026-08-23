@@ -1,7 +1,8 @@
 package fr.skytasul.quests.expansion.options;
 
 import com.cryptomorin.xseries.XMaterial;
-import fr.skytasul.quests.api.editors.TextEditor;
+
+import fr.skytasul.quests.api.QuestsPlugin;
 import fr.skytasul.quests.api.editors.parsers.DurationParser.MinecraftTimeUnit;
 import fr.skytasul.quests.api.gui.ItemUtils;
 import fr.skytasul.quests.api.options.OptionSet;
@@ -69,16 +70,17 @@ public class TimeLimitOption extends QuestOption<Integer> implements Listener, Q
 
 	@Override
 	public void click(@NotNull QuestCreationGuiClickEvent event) {
-		LangExpansion.TimeLimit_EDITOR.send(event.getPlayer());
-		new TextEditor<>(event.getPlayer(), event::reopen, obj -> {
-			setValue(obj.intValue());
-			ItemUtils.lore(event.getClicked(), getLore());
-			event.reopen();
-		}, () -> {
-			resetValue();
-			ItemUtils.lore(event.getClicked(), getLore());
-			event.reopen();
-		}, MinecraftTimeUnit.SECOND.getParser()).start();
+		QuestsPlugin.getPlugin().getEditorManager().getFactory().createTextEditorBuilderParser(event.getPlayer(),
+				MinecraftTimeUnit.SECOND.getParser(), event::reopen, time -> {
+					setValue(time.intValue());
+					event.reopen();
+				}).addReset(() -> {
+					resetValue();
+					event.reopen();
+				}, "null")
+				.setInitialValue(getValue().longValue())
+				.setIndication(LangExpansion.TimeLimit_EDITOR.toString())
+				.build().start();
 	}
 
 	@Override
